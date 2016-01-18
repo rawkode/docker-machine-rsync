@@ -1,0 +1,40 @@
+#!/bin/sh
+if [[ `uname` == 'Linux' ]];
+then
+    echo "  -- You appear to be running Linux; you do not need to sync files to a Docker Machine"
+    exit
+fi
+
+command -v docker-machine > /dev/null 2>&1
+if [ $? -ne 0 ];
+then
+    echo "  - You do not appear to have docker-machine installed - perhaps it's not in your PATH?"
+    exit
+fi
+
+docker-machine active > /dev/null 2>&1
+if [ $? -ne 0 ];
+then
+    echo "  - There is no active docker-machine. Please run: eval \"\$(docker-machine env <machine-name>)\""
+    exit
+fi
+
+command -v watch > /dev/null 2>&1
+if [ $? -ne 0 ];
+then
+    echo "  - You do not appear to have watch installed - perhaps it's not in your PATH?"
+    exit
+fi
+
+ssh-add ~/.docker/machine/machines/`docker-machine active`/id_rsa
+
+docker-machine ssh `docker-machine active` tce-load -wi rsync
+docker-machine ssh `docker-machine active` "sudo mkdir -p `pwd` && sudo chown docker:docker -R `pwd`"
+
+if [[ -f '.rsyncignore' ]];
+then
+    watch -n1 rsync --exclude-from='.rsyncignore' -rlptDv ./ docker@`docker-machine ip $(docker-machine active)`:`pwd`
+else
+    watch -n1 rsync -rlptDv ./ docker@`docker-machine ip $(docker-machine active)`:`pwd`
+fi
+
